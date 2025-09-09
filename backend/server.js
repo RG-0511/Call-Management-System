@@ -28,13 +28,11 @@ app.use(cors());
 app.use(express.json());
 const upload = multer({ dest: 'uploads/' });
 
-
-
 // =============================================================
 //               AUTHENTICATION ENDPOINTS
 // =============================================================
 
-// --- 1. Register a new caller (for setup) ---
+// --- 1. Register a new caller ---
 app.post('/api/register', async (req, res) => {
     const { username, password, fullName } = req.body;
     if (!username || !password) {
@@ -50,7 +48,7 @@ app.post('/api/register', async (req, res) => {
         res.status(201).json(newUser.rows[0]);
     } catch (err) {
         console.error(err.message);
-        if (err.code === '23505') {
+        if (err.code === '23505') { // Unique constraint violation
             return res.status(400).json({ message: "Username already exists." });
         }
         res.status(500).send("Server error during registration.");
@@ -124,6 +122,7 @@ app.post('/api/change-password', authMiddleware, async (req, res) => {
     }
 });
 
+
 // =============================================================
 //               API ENDPOINTS FOR CALLER APP
 // =============================================================
@@ -144,8 +143,9 @@ app.post('/api/feedback', authMiddleware, async (req, res) => {
             feedback["Rest Stop Hygiene (Stars)"], feedback["Comments"], feedback["Timestamp"], callerId
         ];
         await pool.query(query, values);
-        res.status(201).json({ message: 'Feedback received and saved successfully!' });
+        res.status(201).json({ message: 'Feedback saved successfully!' });
     } catch (err) {
+        console.error("❌ Database error saving feedback:", err);
         res.status(500).json({ message: "Failed to save feedback." });
     }
 });
@@ -153,14 +153,21 @@ app.post('/api/feedback', authMiddleware, async (req, res) => {
 // =============================================================
 //            API ENDPOINTS FOR MANAGER DASHBOARD
 // =============================================================
-app.post('/api/upload-sheet', upload.single('callsheet'), (req, res) => {
+app.post('/api/upload-sheet', upload.single('callsheet'), async (req, res) => { // <-- Made this function async
     if (!req.file) return res.status(400).json({ message: "No file uploaded." });
     const filePath = req.file.path;
     try {
+        // --- NEW LOGIC: RESET TODAY'S PROGRESS ---
+        // This command deletes feedback records submitted today, resetting the counter.
+        await pool.query("DELETE FROM feedback WHERE submitted_at >= current_date");
+        console.log("✅ Today's feedback records have been cleared for a fresh start.");
+        // --- END OF NEW LOGIC ---
+
         const workbook = xlsx.readFile(filePath);
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const data = xlsx.utils.sheet_to_json(worksheet);
+        
         const newAssignments = {};
         let callIdCounter = 1;
         for (const row of data) {
@@ -171,9 +178,6 @@ app.post('/api/upload-sheet', upload.single('callsheet'), (req, res) => {
                 id: callIdCounter++,
                 passenger_name: row['Passenger Name'], phone_number: row['Phone'],
                 operator: row['Service Name'], route: row['Route'],
-                bus_no: row['Bus No.'], driver_name: row['Driver Name'],
-                driver_phone: row['Driver Phone'], time: row['Time'],
-                ticket_no: row['Ticket No'], seat_no: row['Seat No'],
                 status: "Pending"
             });
         }
@@ -181,36 +185,53 @@ app.post('/api/upload-sheet', upload.single('callsheet'), (req, res) => {
         fs.unlinkSync(filePath);
         res.json({ message: `Sheet processed. Loaded assignments for ${Object.keys(allAssignments).length} callers.` });
     } catch (error) {
+        console.error("❌ Error during sheet upload process:", error);
         fs.unlinkSync(filePath);
         res.status(500).json({ message: "Error processing Excel file." });
     }
 });
 
-// Provides the real-time performance summary for the dashboard.
-app.get('/api/performance-summary', (req, res) => {
-    const callerData = Object.keys(allAssignments).map((username, index) => {
-        const calls = allAssignments[username];
-        const totalAssigned = calls.length;
-        const callsDone = calls.filter(call => call.status === 'Complete').length;
-        const operators = [...new Set(calls.map(call => call.operator))];
+app.get('/api/performance-summary', async (req, res) => {
+    try {
+        const feedbackCountQuery = `
+            SELECT c.username, COUNT(f.feedback_id) AS calls_done
+            FROM callers c
+            LEFT JOIN feedback f ON c.caller_id = f.caller_id AND f.submitted_at >= current_date
+            GROUP BY c.username;
+        `;
+        const dbResults = await pool.query(feedbackCountQuery);
+        
+        const liveCounts = dbResults.rows.reduce((acc, row) => {
+            acc[row.username] = parseInt(row.calls_done, 10);
+            return acc;
+        }, {});
 
-        return {
-            caller_id: 101 + index,
-            caller_name: username,
-            avatar: `https://i.pravatar.cc/150?u=${username}`,
-            total_calls_assigned: totalAssigned,
-            calls_done: callsDone,
-            operators_assigned: operators.join(', ')
-        };
-    });
-    
-    res.json({
-        callers: callerData,
-        operators: [] // Operator data is deferred as requested
-    });
+        const callerData = Object.keys(allAssignments).map((username, index) => {
+            const calls = allAssignments[username] || [];
+            const totalAssigned = calls.length;
+            const callsDone = liveCounts[username] || 0;
+            const operators = [...new Set(calls.map(call => call.operator))];
+
+            return {
+                caller_id: 101 + index,
+                caller_name: username,
+                avatar: `https://i.pravatar.cc/150?u=${username}`,
+                total_calls_assigned: totalAssigned,
+                calls_done: callsDone,
+                operators_assigned: operators.join(', ')
+            };
+        });
+        
+        res.json({ callers: callerData, operators: [] });
+
+    } catch (err) {
+        console.error("❌ Error fetching performance summary:", err);
+        res.status(500).json({ message: "Could not retrieve performance data." });
+    }
 });
 
 // --- START THE SERVER ---
 app.listen(PORT, () => {
     console.log(`✅ Server is listening on http://localhost:${PORT}`);
 });
+

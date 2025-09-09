@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connectify Manager Dashboard</title>
+    <title>Connectify Manager</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { background-color: #f4f7f9; }
         .header { background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,.08); }
-        .performance-card { border: none; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); cursor: pointer; transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
-        .performance-card:hover { transform: translateY(-5px); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12); }
+        .performance-card { border: none; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); }
         .card-header { background-color: transparent; border-bottom: 1px solid #e9ecef; }
         .avatar { width: 60px; height: 60px; border-radius: 50%; }
         .metric { text-align: center; }
@@ -20,14 +19,10 @@
         .admin-panel { background-color: #e9ecef; border-radius: 0.75rem; }
         .login-view { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
         .login-card { width: 100%; max-width: 420px; border-radius: 1rem; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
-        .page { display: none; }
-        .page.active { display: block; }
-        .nav-tabs .nav-link.active { font-weight: bold; color: var(--bs-primary); }
     </style>
 </head>
 <body>
 
-    <!-- ======================= LOGIN VIEW ======================= -->
     <div id="login-view">
         <div class="container login-view">
             <div class="card login-card">
@@ -44,7 +39,6 @@
         </div>
     </div>
 
-    <!-- ======================= MAIN DASHBOARD VIEW (Initially Hidden) ======================= -->
     <div id="dashboard-view" style="display: none;">
         <header class="header sticky-top p-3">
             <div class="container-fluid d-flex align-items-center">
@@ -70,7 +64,7 @@
                         </form>
                     </div>
                     <div class="col-md-4 d-grid mb-2">
-                        <label class="form-label small">2. Add a New Caller</label>
+                        <label class="form-label small">2. Add a New User</label>
                         <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#registerModal">
                             <i class="bi bi-person-plus-fill me-2"></i>Register New Caller
                         </button>
@@ -79,7 +73,9 @@
             </div>
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h3>Caller Performance</h3>
-                <button class="btn btn-outline-primary" onclick="loadAllPerformanceData()"><i class="bi bi-arrow-clockwise"></i> Refresh Data</button>
+                <button class="btn btn-outline-primary" onclick="loadAllPerformanceData()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh Data
+                </button>
             </div>
             <div class="row" id="callers-grid">
                 <div class="col-12 text-center text-muted p-5"><h5>Please upload a daily call sheet to view performance data.</h5></div>
@@ -87,7 +83,6 @@
         </main>
     </div>
 
-    <!-- ======================= MODALS ======================= -->
     <div class="modal fade" id="registerModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -110,19 +105,34 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // This script is wrapped in DOMContentLoaded to ensure all HTML elements are loaded before the script runs.
         document.addEventListener('DOMContentLoaded', () => {
             const loginView = document.getElementById('login-view');
             const dashboardView = document.getElementById('dashboard-view');
             const loginForm = document.getElementById('login-form');
             const uploadForm = document.getElementById('upload-form');
             const callersGrid = document.getElementById('callers-grid');
-            let registerModal;
-            
+            const saveCallerBtn = document.getElementById('save-caller-btn');
+            let registerModal = new bootstrap.Modal(document.getElementById('registerModal'));
+
+            // Attach event listeners
             loginForm.addEventListener('submit', handleManagerLogin);
             uploadForm.addEventListener('submit', handleSheetUpload);
-            registerModal = new bootstrap.Modal(document.getElementById('registerModal'));
+            saveCallerBtn.addEventListener('click', handleRegister);
 
-            document.getElementById('save-caller-btn').addEventListener('click', async () => {
+            function handleManagerLogin(event) {
+                event.preventDefault();
+                const username = document.getElementById('manager-username').value;
+                const password = document.getElementById('manager-password').value;
+                if (username === 'manager' && password === 'password') {
+                    loginView.style.display = 'none';
+                    dashboardView.style.display = 'block';
+                } else {
+                    document.getElementById('login-error').textContent = 'Invalid credentials.';
+                }
+            }
+
+            async function handleRegister() {
                 const username = document.getElementById('register-username').value;
                 const password = document.getElementById('register-password').value;
                 const fullName = document.getElementById('register-fullname').value;
@@ -148,20 +158,73 @@
                     messageDiv.textContent = error.message;
                     messageDiv.className = 'alert alert-danger';
                 }
-            });
-
-            function handleManagerLogin(event) {
+            }
+            
+            async function handleSheetUpload(event) {
                 event.preventDefault();
-                const username = document.getElementById('manager-username').value;
-                const password = document.getElementById('manager-password').value;
-                if (username === 'manager' && password === 'password') {
-                    loginView.style.display = 'none';
-                    dashboardView.style.display = 'block';
-                } else {
-                    document.getElementById('login-error').textContent = 'Invalid credentials.';
+                const form = event.target;
+                const button = form.querySelector('button');
+                const fileInput = form.querySelector('input[type="file"]');
+                if (!fileInput.files.length) return alert("Please select an Excel file.");
+                const formData = new FormData();
+                formData.append('callsheet', fileInput.files[0]);
+                button.disabled = true;
+                button.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Distributing...`;
+                try {
+                    const response = await fetch('https://call-management-system.onrender.com/api/upload-sheet', { method: 'POST', body: formData });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+                    alert(result.message);
+                    form.reset();
+                    // This is the critical step that was failing. It will now correctly
+                    // call the function to fetch and display the new data.
+                    await window.loadAllPerformanceData();
+                } catch (error) {
+                    alert(`Error: ${error.message}`);
+                } finally {
+                    button.disabled = false;
+                    button.innerHTML = `<i class="bi bi-cloud-upload-fill me-2"></i>Upload and Distribute`;
                 }
             }
             
+            function renderCallerDashboard(data) {
+                callersGrid.innerHTML = ''; 
+                if (!data || data.length === 0) {
+                     callersGrid.innerHTML = '<div class="col-12 text-center text-muted p-5"><h5>No caller data found. Upload a sheet to begin.</h5></div>';
+                     return;
+                }
+                data.forEach(caller => {
+                    const card = document.createElement('div');
+                    card.className = 'col-lg-4 col-md-6 mb-4';
+                    const progressPercent = caller.total_calls_assigned > 0 ? (caller.calls_done / caller.total_calls_assigned) * 100 : 0;
+                    card.innerHTML = `
+                        <div class="card performance-card h-100">
+                            <div class="card-header pt-3">
+                                <div class="d-flex align-items-center">
+                                    <img src="https://media.licdn.com/dms/image/v2/D4E0BAQG-IT2bjz62Og/company-logo_200_200/B4EZapccprHMAI-/0/1746599530812/connectifyco_logo?e=1760572800&v=beta&t=aKReGTUp6J_UBPFiUmsKerbP2yF_H1M7GKvnJ29eA6A"" alt="Logo" style="width:40px; height:auto;">
+                                    <div class="ms-3">
+                                        <h5 class="card-title mb-0">${caller.caller_name}</h5>
+                                        <p class="text-muted small mb-0">Operators: ${caller.operators_assigned || 'N/A'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2 text-muted">Daily Progress</h6>
+                                <div class="metric">
+                                    <div class="value">${caller.calls_done} <span class="fs-5 text-muted">/ ${caller.total_calls_assigned}</span></div>
+                                    <div class="label">Calls Completed</div>
+                                </div>
+                                <div class="progress mt-2" role="progressbar" style="height: 10px;">
+                                    <div class="progress-bar" style="width: ${progressPercent}%;"></div>
+                                </div>
+                            </div>
+                        </div>`;
+                    callersGrid.appendChild(card);
+                });
+            }
+
+            // These functions are exposed to the global window scope so that the
+            // inline "onclick" attributes in the HTML can find and call them.
             window.handleLogout = () => {
                 loginView.style.display = 'block';
                 dashboardView.style.display = 'none';
@@ -179,54 +242,6 @@
                 } catch (error) {
                     callersGrid.innerHTML = `<div class="col-12 text-center text-danger p-5"><h5>${error.message}</h5></div>`;
                 }
-            }
-
-            async function handleSheetUpload(event) {
-                event.preventDefault();
-                const form = event.target;
-                const button = form.querySelector('button');
-                const fileInput = form.querySelector('input[type="file"]');
-                if (!fileInput.files.length) return alert("Please select an Excel file.");
-                const formData = new FormData();
-                formData.append('callsheet', fileInput.files[0]);
-                button.disabled = true;
-                button.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Distributing...`;
-                try {
-                    const response = await fetch('https://call-management-system.onrender.com/api/upload-sheet', { method: 'POST', body: formData });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.message);
-                    alert(result.message);
-                    form.reset();
-                    await loadAllPerformanceData();
-                } catch (error) {
-                    alert(`Error: ${error.message}`);
-                } finally {
-                    button.disabled = false;
-                    button.innerHTML = `<i class="bi bi-cloud-upload-fill me-2"></i>Upload Sheet`;
-                }
-            }
-            
-            function renderCallerDashboard(data) {
-                callersGrid.innerHTML = ''; 
-                if (data.length === 0) {
-                     callersGrid.innerHTML = '<div class="col-12 text-center text-muted p-5"><h5>No caller data found. Upload a sheet to begin.</h5></div>';
-                     return;
-                }
-                data.forEach(caller => {
-                    const card = document.createElement('div');
-                    card.className = 'col-lg-4 col-md-6 mb-4';
-                    const progressPercent = caller.total_calls_assigned > 0 ? (caller.calls_done / caller.total_calls_assigned) * 100 : 0;
-                    card.innerHTML = `
-                        <div class="card performance-card h-100">
-                            <div class="card-header pt-3"><div class="d-flex align-items-center"><img src="${caller.avatar}" class="avatar"><div class="ms-3"><h5 class="card-title mb-0">${caller.caller_name}</h5><p class="text-muted small mb-0">Operators: ${caller.operators_assigned || 'N/A'}</p></div></div></div>
-                            <div class="card-body">
-                                <h6 class="card-subtitle mb-2 text-muted">Daily Progress</h6>
-                                <div class="metric"><div class="value">${caller.calls_done} <span class="fs-5 text-muted">/ ${caller.total_calls_assigned}</span></div><div class="label">Calls Completed</div></div>
-                                <div class="progress mt-2" role="progressbar" style="height: 10px;"><div class="progress-bar" style="width: ${progressPercent}%;"></div></div>
-                            </div>
-                        </div>`;
-                    callersGrid.appendChild(card);
-                });
             }
         });
     </script>
