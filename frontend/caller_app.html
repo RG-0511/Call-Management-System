@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connectify Callers</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root { --sidebar-bg: #2c3e50; --header-bg: #ffffff; --body-bg: #f4f7f9; --card-bg: #ffffff; --primary-color: #3498db; }
+        html, body { height: 100%; }
+        body { background-color: var(--body-bg); overflow-x: hidden; }
+        .app-wrapper { display: flex; height: 100%; }
+        .header { background-color: var(--header-bg); box-shadow: 0 2px 4px rgba(0,0,0,.08); z-index: 1030; }
+        .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; background-color: var(--sidebar-bg); color: #fff; padding: 1.5rem; transform: translateX(-100%); transition: transform 0.3s ease-in-out; z-index: 1040; display: flex; flex-direction: column; }
+        .sidebar.show { transform: translateX(0); }
+        .sidebar .logo { font-weight: bold; font-size: 1.5rem; margin-bottom: 2rem; }
+        .sidebar .nav-link { color: #bdc3c7; font-size: 1.1rem; padding: 0.75rem 1rem; border-radius: 0.5rem; cursor: pointer; }
+        .sidebar .nav-link.active, .sidebar .nav-link:hover { color: #fff; background-color: rgba(255, 255, 255, 0.1); }
+        .sidebar-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.5); z-index: 1035; display: none; }
+        .sidebar-backdrop.show { display: block; }
+        .main-content { width: 100%; height: 100%; overflow-y: auto; }
+        .page { display: none; }
+        .page.active { display: block; }
+        .login-view { display: flex; align-items: center; justify-content: center; height: 100%; background: linear-gradient(to bottom, #f4f7f9 0%, #e9ecef 100%); }
+        .login-card { width: 100%; max-width: 420px; border: none; border-radius: 1rem; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1); }
+        .login-header { text-align: center; padding: 2rem 1rem 1.5rem 1rem; }
+        .login-header .logo-icon { font-size: 3rem; color: var(--primary-color); }
+        .login-header h2 { font-weight: 700; }
+        .call-card { background-color: var(--card-bg); border: 1px solid #dee2e6; border-left-width: 5px; border-radius: 0.5rem; margin-bottom: 1rem; transition: all 0.2s ease-in-out; }
+        .call-card.is-expandable { cursor: pointer; }
+        .call-card.is-expandable:hover { box-shadow: 0 4px 12px rgba(0,0,0,.1); transform: translateY(-2px); }
+        .call-card.status-pending { border-left-color: var(--primary-color); }
+        .call-card.status-complete { border-left-color: #28a745; }
+        .expandable-content { display: none; padding: 1.5rem; background-color: #f8f9fa; border-radius: 0 0 0.5rem 0.5rem; margin-top: -1rem; margin-bottom: 1rem; border: 1px solid #dee2e6; border-top: none; }
+        .call-card.active { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+        .call-card.active + .expandable-content { display: block; }
+        .star-rating .bi { font-size: 1.5rem; color: #ced4da; cursor: pointer; }
+        .star-rating .bi.selected, .star-rating .bi:hover { color: #ffc107; }
+        .star-rating .bi:hover ~ .bi { color: #ced4da; }
+        .call-attempts .form-check-label { font-size: 0.8rem; }
+        .call-attempts small { font-size: 0.75rem; line-height: 1; }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem 1rem; }
+        .progress-container { position: relative; }
+        .bus-icon { position: absolute; top: 50%; transform: translateY(-50%); font-size: 1.5rem; color: var(--primary-color); transition: left 0.5s ease-in-out; margin-left: -12px; }
+    </style>
+</head>
+<body>
+
+    <!-- LOGIN VIEW (Test User Button is REMOVED) -->
+    <div id="login-view" class="login-view active">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-11 col-sm-8 col-md-6 col-lg-5 col-xl-4">
+                    <div class="card login-card">
+                        <div class="login-header">
+                            <div class="logo-icon mb-3"><img src="https://media.licdn.com/dms/image/v2/D4E0BAQG-IT2bjz62Og/company-logo_200_200/B4EZapccprHMAI-/0/1746599530812/connectifyco_logo?e=1760572800&v=beta&t=aKReGTUp6J_UBPFiUmsKerbP2yF_H1M7GKvnJ29eA6A"" alt="Logo" style="width:40px; height:auto;">
+                            </i></div>
+                            <h2>Welcome to Connectify</h2>
+                            <p class="text-muted">Please sign in to continue</p>
+                        </div>
+                        <div class="card-body p-4 pt-0">
+                            <form id="login-form">
+                                <div class="input-group mb-3"><span class="input-group-text"><i class="bi bi-person-fill"></i></span><div class="form-floating"><input type="text" class="form-control" id="username" placeholder="Username" required><label for="username">Username</label></div></div>
+                                <div class="input-group mb-3"><span class="input-group-text"><i class="bi bi-lock-fill"></i></span><div class="form-floating"><input type="password" class="form-control" id="password" placeholder="Password" required><label for="password">Password</label></div></div>
+                                <div class="d-grid"><button type="submit" class="btn btn-primary btn-lg">Sign In</button></div>
+                                <div id="login-error" class="text-danger mt-2 text-center"></div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- MAIN APP VIEW -->
+    <div id="app-view" class="app-wrapper page">
+        <div class="sidebar" id="sidebar">
+            <div>
+                <div class="logo"><img src="https://media.licdn.com/dms/image/v2/D4E0BAQG-IT2bjz62Og/company-logo_200_200/B4EZapccprHMAI-/0/1746599530812/connectifyco_logo?e=1760572800&v=beta&t=aKReGTUp6J_UBPFiUmsKerbP2yF_H1M7GKvnJ29eA6A"" alt="Logo" style="width:40px; height:auto;"></i>Connectify</div>
+                <ul class="nav flex-column">
+                    <li class="nav-item"><a class="nav-link active" onclick="showPage('queue')"><i class="bi bi-telephone me-2"></i> Call Queue</a></li>
+                    <li class="nav-item"><a class="nav-link" onclick="showPage('settings')"><i class="bi bi-gear me-2"></i> Settings</a></li>
+                </ul>
+            </div>
+            <div class="mt-auto">
+                 <hr class="text-secondary">
+                 <a class="nav-link" onclick="handleLogout()"><i class="bi bi-box-arrow-left me-2"></i> Logout</a>
+            </div>
+        </div>
+        <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="toggleSidebar()"></div>
+
+        <div class="main-content">
+            <header class="header sticky-top p-3">
+                <div class="container-fluid d-flex align-items-center">
+                    <button class="btn btn-light me-3" onclick="toggleSidebar()"><i class="bi bi-list fs-5"></i></button>
+                    <h4 class="mb-0" id="page-title">Today's Queue</h4>
+                    <div id="caller-name-display" class="ms-auto text-end fw-bold"></div>
+                </div>
+            </header>
+
+            <main class="container py-4">
+                <div id="queue-page" class="page active">
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1"><small>Daily Progress</small><small><strong id="progress-text">0 / 0</strong></small></div>
+                        <div class="progress-container">
+                            <div class="progress" style="height: 10px;"><div id="progress-bar" class="progress-bar" style="width: 0%;"></div></div>
+                            <i id="bus-icon" class="bi bi-bus-front-fill bus-icon" style="left: 0%;"></i>
+                        </div>
+                    </div>
+                    <ul class="nav nav-pills mb-3">
+                        <li class="nav-item"><a id="filter-all" class="nav-link active" href="#" style="--bs-nav-pills-link-active-bg: var(--primary-color);">All (0)</a></li>
+                        <li class="nav-item"><a id="filter-pending" class="nav-link" href="#">Pending (0)</a></li>
+                        <li class="nav-item"><a id="filter-complete" class="nav-link" href="#">Completed (0)</a></li>
+                    </ul>
+                    <div id="call-queue"></div>
+                </div>
+                <div id="settings-page" class="page">
+                    <div class="row justify-content-center">
+                        <div class="col-md-8 col-lg-6">
+                            <div class="card">
+                                <div class="card-body p-4">
+                                    <h4 class="card-title mb-4">Change Password</h4>
+                                    <form id="change-password-form">
+                                        <div class="form-floating mb-3">
+                                            <input type="password" class="form-control" id="current-password" placeholder="Current Password" required>
+                                            <label for="current-password">Current Password</label>
+                                        </div>
+                                        <div class="form-floating mb-3">
+                                            <input type="password" class="form-control" id="new-password" placeholder="New Password" required minlength="6">
+                                            <label for="new-password">New Password</label>
+                                        </div>
+                                        <div class="form-floating mb-3">
+                                            <input type="password" class="form-control" id="confirm-password" placeholder="Confirm New Password" required>
+                                            <label for="confirm-password">Confirm New Password</label>
+                                        </div>
+                                        <div id="password-message" class="mt-3"></div>
+                                        <div class="d-grid mt-3">
+                                            <button type="submit" class="btn btn-primary">Update Password</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements & App State ---
+            const loginView = document.getElementById('login-view');
+            const appView = document.getElementById('app-view');
+            const loginForm = document.getElementById('login-form');
+            const callQueueContainer = document.getElementById('call-queue');
+            const loginError = document.getElementById('login-error');
+            const changePasswordForm = document.getElementById('change-password-form');
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('sidebar-backdrop');
+            const pageTitle = document.getElementById('page-title');
+            const pages = document.querySelectorAll('.page');
+            const navLinks = document.querySelectorAll('.sidebar .nav-link');
+            
+            let activeRow = null;
+            let callQueueData = [];
+            let currentFilter = 'all';
+
+            // --- Event Listeners ---
+            loginForm.addEventListener('submit', handleLogin);
+            changePasswordForm.addEventListener('submit', handleChangePassword);
+            document.getElementById('filter-all').addEventListener('click', (e) => { e.preventDefault(); setActiveFilter('all'); renderCallQueue('all'); });
+            document.getElementById('filter-pending').addEventListener('click', (e) => { e.preventDefault(); setActiveFilter('pending'); renderCallQueue('Pending'); });
+            document.getElementById('filter-complete').addEventListener('click', (e) => { e.preventDefault(); setActiveFilter('complete'); renderCallQueue('Complete'); });
+            
+            // --- Core Functions ---
+            async function handleLogin(event) {
+                event.preventDefault();
+                loginError.textContent = '';
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+
+                try {
+                    const response = await fetch('http://localhost:3001/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.message || "Login failed.");
+                    }
+                    const data = await response.json();
+                    localStorage.setItem('authToken', data.token);
+                    localStorage.setItem('username', data.username);
+
+                    document.getElementById('caller-name-display').textContent = data.username;
+                    loginView.style.display = 'none';
+                    appView.style.display = 'flex';
+                    await loadCallQueue();
+                } catch (error) {
+                    loginError.textContent = error.message;
+                }
+            }
+
+            function handleLogout() {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('username');
+                callQueueData = [];
+                appView.style.display = 'none';
+                loginView.style.display = 'flex';
+                loginForm.reset();
+            }
+
+            async function loadCallQueue() {
+                const token = localStorage.getItem('authToken');
+                if (!token) return;
+                try {
+                    const response = await fetch('http://localhost:3001/api/calls', {
+                        headers: { 'x-auth-token': token }
+                    });
+                    if (!response.ok) throw new Error("Could not fetch calls.");
+                    
+                    callQueueData = await response.json();
+                    renderCallQueue('all');
+                    updateStats();
+                } catch (error) {
+                    console.error(error);
+                    alert(error.message);
+                    handleLogout();
+                }
+            }
+
+            async function submitFeedback(passengerId) {
+                const token = localStorage.getItem('authToken');
+                if (!token) return alert("Session expired. Please re-login.");
+
+                const passenger = callQueueData.find(p => p.id === passengerId);
+                const form = document.getElementById(`form-${passengerId}`);
+                if (!passenger || !form) return;
+
+                const feedbackData = {
+                    passengerId: passenger.id,
+                    "Passenger Name": passenger.passenger_name,
+                    "Phone Number": passenger.phone_number,
+                    "Operator": passenger.operator, "Route": passenger.route,
+                    "Punctuality": form.querySelector('#punctuality').value,
+                    "AC Working": form.querySelector('#ac-working').value,
+                    "Live Tracking": form.querySelector('#live-tracking').value,
+                    "Staff Behavior (Stars)": form.querySelector('#staff-behavior-rating').dataset.rating || 0,
+                    "Bus Cleanliness (Stars)": form.querySelector('#bus-cleanliness-rating').dataset.rating || 0,
+                    "Rest Stop Hygiene (Stars)": form.querySelector('#rest-stop-hygiene-rating').dataset.rating || 0,
+                    "Comments": form.querySelector('#comments').value, "Timestamp": new Date().toISOString()
+                };
+                
+                try {
+                    const response = await fetch('http://localhost:3001/api/feedback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                        body: JSON.stringify(feedbackData)
+                    });
+                    if (!response.ok) throw new Error('Server error on submit.');
+                    
+                    alert('Feedback submitted successfully!');
+                    passenger.status = 'Complete';
+                    renderCallQueue(currentFilter);
+                    updateStats();
+                } catch (error) {
+                    alert('Error submitting feedback.');
+                }
+            }
+
+            async function handleChangePassword(event) {
+                event.preventDefault();
+                const messageDiv = document.getElementById('password-message');
+                messageDiv.textContent = '';
+                messageDiv.className = '';
+                const currentPassword = document.getElementById('current-password').value;
+                const newPassword = document.getElementById('new-password').value;
+                const confirmPassword = document.getElementById('confirm-password').value;
+
+                if (newPassword !== confirmPassword) {
+                    messageDiv.textContent = 'New passwords do not match.';
+                    messageDiv.className = 'alert alert-danger';
+                    return;
+                }
+                
+                const token = localStorage.getItem('authToken');
+                if (!token) return handleLogout();
+
+                try {
+                    const response = await fetch('http://localhost:3001/api/change-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                        body: JSON.stringify({ currentPassword, newPassword })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+                    messageDiv.textContent = result.message;
+                    messageDiv.className = 'alert alert-success';
+                    changePasswordForm.reset();
+                } catch (error) {
+                    messageDiv.textContent = error.message;
+                    messageDiv.className = 'alert alert-danger';
+                }
+            }
+
+            function updateStats() {
+                const totalCalls = callQueueData.length;
+                const completedCalls = callQueueData.filter(p => p.status === 'Complete').length;
+                const pendingCalls = totalCalls - completedCalls;
+                const progressPercent = totalCalls > 0 ? (completedCalls / totalCalls) * 100 : 0;
+                document.getElementById('progress-text').textContent = `${completedCalls} / ${totalCalls}`;
+                document.getElementById('progress-bar').style.width = `${progressPercent}%`;
+                document.getElementById('bus-icon').style.left = `calc(${progressPercent}% - ${progressPercent > 5 ? '12px' : '0px'})`;
+                document.getElementById('filter-all').textContent = `All (${totalCalls})`;
+                document.getElementById('filter-pending').textContent = `Pending (${pendingCalls})`;
+                document.getElementById('filter-complete').textContent = `Completed (${completedCalls})`;
+            }
+
+            function renderCallQueue(filter) {
+                let filteredData = callQueueData;
+                if (filter && filter !== 'all') {
+                    filteredData = callQueueData.filter(p => p.status === filter);
+                }
+                
+                if (!filteredData || filteredData.length === 0) {
+                    callQueueContainer.innerHTML = '<div class="alert alert-info">No calls match the current filter.</div>';
+                    return;
+                }
+
+                const allCardsHTML = filteredData.map(passenger => {
+                    const statusClass = (passenger.status || 'pending').toLowerCase().replace(' ', '-');
+                    const isComplete = passenger.status === 'Complete';
+                    const buttonHTML = isComplete ? `<button class="btn btn-success w-100 w-md-auto mt-2 mt-md-0" disabled><i class="bi bi-check-circle-fill me-2"></i>Complete</button>` : `<button class="btn btn-primary w-100 w-md-auto mt-2 mt-md-0">Open Form</button>`;
+                    const formHTML = `
+                        <div class="mb-4"><h6 class="mb-3 border-bottom pb-2">Journey Details</h6><div class="detail-grid small text-muted"><div><strong>Bus No:</strong> ${passenger.bus_no || 'N/A'}</div><div><strong>Driver Name:</strong> ${passenger.driver_name || 'N/A'}</div><div><strong>Driver Phone:</strong> ${passenger.driver_phone || 'N/A'}</div><div><strong>Time:</strong> ${passenger.time || 'N/A'}</div><div><strong>Ticket No:</strong> ${passenger.ticket_no || 'N/A'}</div><div><strong>Seat No:</strong> ${passenger.seat_no || 'N/A'}</div></div></div>
+                        <h5 class="mb-3">Feedback Form</h5>
+                        <form id="form-${passenger.id}">
+                            <div class="row"><div class="col-md-4 mb-3"><label class="form-label">Punctuality</label><select id="punctuality" class="form-select"><option>On Time</option><option>Delayed < 30min</option><option>Delayed > 30min</option></select></div><div class="col-md-4 mb-3"><label class="form-label">AC Working?</label><select id="ac-working" class="form-select"><option>Yes</option><option>No</option><option>Not Applicable</option></select></div><div class="col-md-4 mb-3"><label class="form-label">Live Tracking?</label><select id="live-tracking" class="form-select"><option>Yes</option><option>No</option><option>Didn't Check</option></select></div></div>
+                            <div class="row"><div class="col-md-4 mb-3"><label class="form-label">Staff Behavior</label><div id="staff-behavior-rating" class="star-rating" data-rating="0"><i class="bi bi-star-fill" data-value="1"></i><i class="bi bi-star-fill" data-value="2"></i><i class="bi bi-star-fill" data-value="3"></i><i class="bi bi-star-fill" data-value="4"></i><i class="bi bi-star-fill" data-value="5"></i></div></div><div class="col-md-4 mb-3"><label class="form-label">Bus Cleanliness</label><div id="bus-cleanliness-rating" class="star-rating" data-rating="0"><i class="bi bi-star-fill" data-value="1"></i><i class="bi bi-star-fill" data-value="2"></i><i class="bi bi-star-fill" data-value="3"></i><i class="bi bi-star-fill" data-value="4"></i><i class="bi bi-star-fill" data-value="5"></i></div></div><div class="col-md-4 mb-3"><label class="form-label">Rest Stop Hygiene</label><div id="rest-stop-hygiene-rating" class="star-rating" data-rating="0"><i class="bi bi-star-fill" data-value="1"></i><i class="bi bi-star-fill" data-value="2"></i><i class="bi bi-star-fill" data-value="3"></i><i class="bi bi-star-fill" data-value="4"></i><i class="bi bi-star-fill" data-value="5"></i></div></div></div>
+                            <div class="mb-3"><label class="form-label">Amenities Provided</label><div><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="amenityWater-${passenger.id}"><label class="form-check-label" for="amenityWater-${passenger.id}">Water Bottle</label></div><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="amenityBlanket-${passenger.id}"><label class="form-check-label" for="amenityBlanket-${passenger.id}">Blanket</label></div><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="amenityCharging-${passenger.id}"><label class="form-check-label" for="amenityCharging-${passenger.id}">Charging Point</label></div></div></div>
+                            <div class="mb-3"><label class="form-label">Any specific comments?</label><textarea id="comments" class="form-control" rows="3" placeholder="e.g., Driver was very helpful..."></textarea></div>
+                            <hr><div class="d-flex justify-content-end"><button type="button" class="btn btn-secondary me-2" onclick="closeActiveRow(event)">Cancel</button><button type="button" class="btn btn-primary" onclick="submitFeedback(${passenger.id})">Submit Feedback</button></div>
+                        </form>
+                    `;
+                    return `<div><div class="call-card status-${statusClass} ${isComplete ? '' : 'is-expandable'}" onclick="toggleRow(this, ${isComplete})"><div class="p-3 d-block d-md-flex align-items-md-center"><div class="flex-grow-1"><h5 class="mb-2">${passenger.passenger_name || 'N/A'}</h5><div class="row g-1 text-muted small"><div class="col-12 col-md-6"><i class="bi bi-building me-1"></i> <strong>Service:</strong> ${passenger.operator || 'N/A'}</div><div class="col-12 col-md-6"><a href="tel:${passenger.phone_number}" onclick="event.stopPropagation()" class="text-decoration-none text-muted"><i class="bi bi-telephone me-1"></i> <strong>Phone:</strong> ${passenger.phone_number || 'N/A'}</a><a href="https://wa.me/91${passenger.phone_number}" target="_blank" onclick="event.stopPropagation()" class="text-success text-decoration-none fs-5 ms-3" title="Open WhatsApp Chat"><i class="bi bi-whatsapp"></i></a></div><div class="col-12 col-md-6"><i class="bi bi-geo-alt-fill me-1"></i> <strong>Route:</strong> ${passenger.route || 'N/A'}</div></div></div><div class="call-attempts text-center my-3 my-md-0 mx-md-3"><small class="text-muted d-block mb-1">Attempts</small><div><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="c1-${passenger.id}" onclick="event.stopPropagation()" ${isComplete ? 'disabled' : ''}><label class="form-check-label" for="c1-${passenger.id}">C1</label></div><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="c2-${passenger.id}" onclick="event.stopPropagation()" ${isComplete ? 'disabled' : ''}><label class="form-check-label" for="c2-${passenger.id}">C2</label></div><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="msg-${passenger.id}" onclick="event.stopPropagation()" ${isComplete ? 'disabled' : ''}><label class="form-check-label" for="msg-${passenger.id}">Msg</label></div></div></div><div class="ms-md-3 text-end">${buttonHTML}</div></div></div><div class="expandable-content" id="expandable-${passenger.id}">${isComplete ? `<div class="text-center text-muted p-3">Feedback for this passenger has already been submitted.</div>` : formHTML}</div></div>`;
+                }).join('');
+                callQueueContainer.innerHTML = allCardsHTML;
+            }
+
+            function setActiveFilter(filter) {
+                currentFilter = filter;
+                document.querySelectorAll('.nav-pills .nav-link').forEach(link => link.classList.remove('active'));
+                document.getElementById(`filter-${filter}`).classList.add('active');
+            }
+            
+            // Exposing functions to global scope to be accessible from inline onclick attributes
+            window.toggleSidebar = () => { sidebar.classList.toggle('show'); backdrop.classList.toggle('show'); };
+            window.showPage = (pageId) => {
+                pages.forEach(page => page.classList.remove('active'));
+                document.getElementById(`${pageId}-page`).classList.add('active');
+                navLinks.forEach(link => link.classList.remove('active'));
+                document.querySelector(`.nav-link[onclick="showPage('${pageId}')"]`).classList.add('active');
+                if (pageId === 'queue') pageTitle.textContent = "Today's Queue";
+                if (pageId === 'settings') pageTitle.textContent = "My Settings";
+                if (sidebar.classList.contains('show')) { toggleSidebar(); }
+            };
+            window.toggleRow = (element, isComplete) => { if (isComplete) return; if (activeRow && activeRow !== element) { activeRow.classList.remove('active'); } element.classList.toggle('active'); activeRow = element.classList.contains('active') ? element : null; };
+            window.closeActiveRow = (event) => { if (activeRow) { activeRow.classList.remove('active'); activeRow = null; } event.stopPropagation(); };
+            window.handleLogout = handleLogout;
+            window.submitFeedback = submitFeedback;
+            window.downloadFeedback = () => { /* Add your download logic here if needed */ };
+
+            document.addEventListener('click', function(event) {
+                if (event.target.matches('.star-rating .bi')) { 
+                    const star = event.target;
+                    const ratingContainer = star.closest('.star-rating');
+                    const value = star.dataset.value;
+                    ratingContainer.dataset.rating = value;
+                    const allStars = ratingContainer.querySelectorAll('.bi');
+                    allStars.forEach(s => s.classList.toggle('selected', s.dataset.value <= value));
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+

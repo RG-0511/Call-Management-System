@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connecify Manager Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f4f7f9; }
+        .header { background-color: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,.08); }
+        .performance-card { border: none; border-radius: 0.75rem; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08); }
+        .card-header { background-color: transparent; border-bottom: 1px solid #e9ecef; }
+        .avatar { width: 60px; height: 60px; border-radius: 50%; }
+        .metric { text-align: center; }
+        .metric .value { font-size: 1.75rem; font-weight: 700; }
+        .metric .label { font-size: 0.85rem; color: #6c757d; }
+        .admin-panel { background-color: #e9ecef; border-radius: 0.75rem; }
+        .login-view { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .login-card { width: 100%; max-width: 420px; border-radius: 1rem; box-shadow: 0 8px 30px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+
+    <div id="login-view">
+        <div class="container login-view">
+            <div class="card login-card">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4"><img src="https://media.licdn.com/dms/image/v2/D4E0BAQG-IT2bjz62Og/company-logo_200_200/B4EZapccprHMAI-/0/1746599530812/connectifyco_logo?e=1760572800&v=beta&t=aKReGTUp6J_UBPFiUmsKerbP2yF_H1M7GKvnJ29eA6A"" alt="Logo" style="width:40px; height:auto;"><h2 class="mt-2">Manager Login</h2><p class="text-muted">Sign in to view the dashboard</p></div>
+                    <form id="login-form">
+                        <div class="form-floating mb-3"><input type="text" class="form-control" id="manager-username" placeholder="manager" value="manager" required><label for="manager-username">Username</label></div>
+                        <div class="form-floating mb-3"><input type="password" class="form-control" id="manager-password" placeholder="password" value="password" required><label for="manager-password">Password</label></div>
+                        <div class="d-grid"><button type="submit" class="btn btn-primary btn-lg">Sign In</button></div>
+                        <div id="login-error" class="text-danger mt-2 text-center"></div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboard-view" style="display: none;">
+        <header class="header sticky-top p-3">
+            <div class="container-fluid d-flex align-items-center">
+                <h4 class="mb-0"><img src="https://media.licdn.com/dms/image/v2/D4E0BAQG-IT2bjz62Og/company-logo_200_200/B4EZapccprHMAI-/0/1746599530812/connectifyco_logo?e=1760572800&v=beta&t=aKReGTUp6J_UBPFiUmsKerbP2yF_H1M7GKvnJ29eA6A"" alt="Logo" style="width:40px; height:auto;"></i>Manager Dashboard</h4>
+                <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="handleLogout()">Logout</button>
+            </div>
+        </header>
+        <main class="container py-4">
+            <div class="admin-panel p-3 mb-4">
+                <h5 class="mb-3">Distribute Daily Calls</h5>
+                <form id="upload-form">
+                    <div class="row align-items-end">
+                        <div class="col-md-8 mb-2">
+                            <label for="callsheet" class="form-label small">Select Daily Call Sheet (.xlsx)</label>
+                            <input class="form-control" type="file" id="callsheet" name="callsheet" accept=".xlsx" required>
+                        </div>
+                        <div class="col-md-4 d-grid mb-2">
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-cloud-upload-fill me-2"></i>Upload and Distribute</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3>Caller Performance</h3>
+                <button class="btn btn-outline-primary" onclick="loadAllPerformanceData()"><i class="bi bi-arrow-clockwise"></i> Refresh Data</button>
+            </div>
+            <div class="row" id="callers-grid">
+                <div class="col-12 text-center text-muted p-5"><h5>Please upload a daily call sheet to view performance data.</h5></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginView = document.getElementById('login-view');
+            const dashboardView = document.getElementById('dashboard-view');
+            const loginForm = document.getElementById('login-form');
+            const uploadForm = document.getElementById('upload-form');
+            const callersGrid = document.getElementById('callers-grid');
+            
+            loginForm.addEventListener('submit', handleManagerLogin);
+            uploadForm.addEventListener('submit', handleSheetUpload);
+
+            function handleManagerLogin(event) {
+                event.preventDefault();
+                const username = document.getElementById('manager-username').value;
+                const password = document.getElementById('manager-password').value;
+                if (username === 'manager' && password === 'password') {
+                    loginView.style.display = 'none';
+                    dashboardView.style.display = 'block';
+                } else {
+                    document.getElementById('login-error').textContent = 'Invalid credentials.';
+                }
+            }
+            
+            window.handleLogout = () => {
+                loginView.style.display = 'block';
+                dashboardView.style.display = 'none';
+                loginForm.reset();
+            };
+
+            window.loadAllPerformanceData = async function() {
+                callersGrid.innerHTML = `<div class="col-12 text-center text-muted p-5"><h5><span class="spinner-border spinner-border-sm"></span> Loading performance data...</h5></div>`;
+                try {
+                    const response = await fetch('http://localhost:3001/api/performance-summary');
+                    if (!response.ok) throw new Error("Could not load summary from server.");
+                    const data = await response.json();
+                    renderCallerDashboard(data.callers || []);
+                } catch (error) {
+                    callersGrid.innerHTML = `<div class="col-12 text-center text-danger p-5"><h5>${error.message}</h5></div>`;
+                }
+            }
+
+            async function handleSheetUpload(event) {
+                event.preventDefault();
+                const form = event.target;
+                const button = form.querySelector('button');
+                const fileInput = form.querySelector('input[type="file"]');
+                if (!fileInput.files.length) return alert("Please select an Excel file.");
+                const formData = new FormData();
+                formData.append('callsheet', fileInput.files[0]);
+                button.disabled = true;
+                button.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Distributing...`;
+                try {
+                    const response = await fetch('http://localhost:3001/api/upload-sheet', { method: 'POST', body: formData });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+                    alert(result.message);
+                    form.reset();
+                    await loadAllPerformanceData();
+                } catch (error) {
+                    alert(`Error: ${error.message}`);
+                } finally {
+                    button.disabled = false;
+                    button.innerHTML = `<i class="bi bi-cloud-upload-fill me-2"></i>Upload and Distribute`;
+                }
+            }
+            
+            function renderCallerDashboard(data) {
+                callersGrid.innerHTML = ''; 
+                if (data.length === 0) {
+                     callersGrid.innerHTML = '<div class="col-12 text-center text-muted p-5"><h5>No caller data found. Upload a sheet to begin.</h5></div>';
+                     return;
+                }
+                data.forEach(caller => {
+                    const card = document.createElement('div');
+                    card.className = 'col-lg-4 col-md-6 mb-4';
+                    const progressPercent = caller.total_calls_assigned > 0 ? (caller.calls_done / caller.total_calls_assigned) * 100 : 0;
+                    card.innerHTML = `
+                        <div class="card performance-card h-100">
+                            <div class="card-header pt-3">
+                                <div class="d-flex align-items-center">
+                                    <img src="https://media.licdn.com/dms/image/v2/D4E0BAQG-IT2bjz62Og/company-logo_200_200/B4EZapccprHMAI-/0/1746599530812/connectifyco_logo?e=1760572800&v=beta&t=aKReGTUp6J_UBPFiUmsKerbP2yF_H1M7GKvnJ29eA6A">
+                                    <div class="ms-3">
+                                        <h5 class="card-title mb-0">${caller.caller_name}</h5>
+                                        <p class="text-muted small mb-0">Operators: ${caller.operators_assigned || 'N/A'}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <h6 class="card-subtitle mb-2 text-muted">Daily Progress</h6>
+                                <div class="metric">
+                                    <div class="value">${caller.calls_done} <span class="fs-5 text-muted">/ ${caller.total_calls_assigned}</span></div>
+                                    <div class="label">Calls Completed</div>
+                                </div>
+                                <div class="progress mt-2" role="progressbar" style="height: 10px;">
+                                    <div class="progress-bar" style="width: ${progressPercent}%;"></div>
+                                </div>
+                            </div>
+                        </div>`;
+                    callersGrid.appendChild(card);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
+

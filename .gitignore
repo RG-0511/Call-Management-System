@@ -1,0 +1,7 @@
+# Ignore backend dependencies and temporary files
+crm-backend/node_modules/
+crm-backend/uploads/
+crm-backend/.env
+
+# Ignore general system files
+.DS_Store
