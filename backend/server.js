@@ -11,12 +11,12 @@ const multer = require('multer');
 
 const app = express();
 const PORT = 3001;
-const JWT_SECRET = 'your_super_secret_key_for_jwt_54321'; // Change this to a random string
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // --- Database Connection ---
 const pool = new Pool({
     // IMPORTANT: Replace this placeholder with your actual Internal Connection String from Render
-    connectionString: "postgresql://connectify_database_user:XR4GT3bBYcdNcMGpsTD8nRZvbDawNq9Y@dpg-d302gi75r7bs73av8uog-a.singapore-postgres.render.com/connectify_database",
+    connectionString: process.env.DATABASE_URL,
     ssl: {
         rejectUnauthorized: false
     }
